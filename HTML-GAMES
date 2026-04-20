@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Investor Challenge</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 30px;
+      color: #111827;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #4b5563;
+      margin-bottom: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .scoreboard {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+
+    .card.selected {
+      outline: 3px solid #2563eb;
+    }
+
+    .card.best {
+      outline: 3px solid #15803d;
+    }
+
+    .card.dimmed {
+      opacity: 0.75;
+    }
+
+    .card h2 {
+      margin-top: 0;
+      margin-bottom: 6px;
+    }
+
+    .industry {
+      color: #6b7280;
+      font-style: italic;
+      margin-bottom: 14px;
+    }
+
+    .metrics {
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+
+    .metrics div {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 4px 0;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .feedback {
+      margin-top: 24px;
+      background: white;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      min-height: 80px;
+    }
+
+    .correct {
+      color: #15803d;
+      font-weight: bold;
+    }
+
+    .wrong {
+      color: #b91c1c;
+      font-weight: bold;
+    }
+
+    .small {
+      color: #4b5563;
+      margin-top: 8px;
+    }
+
+    #nextBtn {
+      margin-top: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Investor Challenge</h1>
+    <div class="subtitle">Pick the company that looks like the best investment.</div>
+
+    <div class="topbar">
+      <div class="scoreboard">Score: <span id="score">0</span> / <span id="round">0</span></div>
+      <button onclick="startRound()">New Round</button>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="feedback" id="feedback">
+      Review the data and choose the strongest investment.
+    </div>
+
+    <button id="nextBtn" onclick="startRound()">Next Round</button>
+  </div>
+
+  <script>
+    // -----------------------------
+    // UTILITIES
+    // -----------------------------
+    function rand(min, max, decimals = 1) {
+      return Number((Math.random() * (max - min) + min).toFixed(decimals));
+    }
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function pick(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function shuffle(array) {
+      const copy = [...array];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    // -----------------------------
+    // FAKE COMPANY NAME PIECES
+    // -----------------------------
+    const prefixes = [
+      "Northstar", "BluePeak", "Ironwood", "Silverline", "Cresta",
+      "Harbor", "Oakridge", "Summit", "Vertex", "Pioneer",
+      "Stonebridge", "Evermont", "RedCanyon", "Clearwater", "Westbridge"
+    ];
+
+    const suffixes = [
+      "Systems", "Labs", "Energy", "Health", "Foods",
+      "Logistics", "Financial", "Software", "Biotech", "Industrial",
+      "Retail", "Networks", "Motors", "Cloud", "Devices"
+    ];
+
+    const industries = [
+      "Software",
+      "Healthcare",
+      "Semiconductors",
+      "Industrial Manufacturing",
+      "Consumer Retail",
+      "Energy",
+      "Logistics",
+      "Fintech",
+      "Biotech",
+      "Telecom"
+    ];
+
+    const profiles = [
+      "High Growth",
+      "Quality Compounder",
+      "Turnaround",
+      "Cyclical",
+      "Cash Cow",
+      "Overhyped",
+      "Undervalued",
+      "Debt Heavy",
+      "Speculative",
+      "Balanced"
+    ];
+
+    // -----------------------------
+    // REALISH COMPANY GENERATOR
+    // -----------------------------
+    function createCompany(id) {
+      const industry = pick(industries);
+      const profile = pick(profiles);
+      const name = `${pick(prefixes)} ${pick(suffixes)} ${id}`;
+
+      let revenueGrowth, operatingMargin, debtToEquity, peRatio, fcfMargin, roe, volatility;
+
+      switch (profile) {
+        case "High Growth":
+          revenueGrowth = rand(18, 38);
+          operatingMargin = rand(8, 22);
+          debtToEquity = rand(0.0, 0.8, 2);
+          peRatio = rand(28, 55);
+          fcfMargin = rand(4, 18);
+          roe = rand(10, 24);
+          volatility = rand(6, 9);
+          break;
+
+        case "Quality Compounder":
+          revenueGrowth = rand(8, 18);
+          operatingMargin = rand(18, 32);
+          debtToEquity = rand(0.0, 0.7, 2);
+          peRatio = rand(18, 30);
+          fcfMargin = rand(12, 28);
+          roe = rand(16, 30);
+          volatility = rand(2, 5);
+          break;
+
+        case "Turnaround":
+          revenueGrowth = rand(-5, 12);
+          operatingMargin = rand(-8, 10);
+          debtToEquity = rand(1.0, 2.8, 2);
+          peRatio = rand(8, 20);
+          fcfMargin = rand(-8, 8);
+          roe = rand(-10, 12);
+          volatility = rand(7, 10);
+          break;
+
+        case "Cyclical":
+          revenueGrowth = rand(-8, 20);
+          operatingMargin = rand(4, 18);
+          debtToEquity = rand(0.4, 1.8, 2);
+          peRatio = rand(7, 18);
+          fcfMargin = rand(3, 16);
+          roe = rand(6, 18);
+          volatility = rand(6, 9);
+          break;
+
+        case "Cash Cow":
+          revenueGrowth = rand(1, 8);
+          operatingMargin = rand(20, 36);
+          debtToEquity = rand(0.2, 1.2, 2);
+          peRatio = rand(12, 22);
+          fcfMargin = rand(16, 30);
+          roe = rand(18, 35);
+          volatility = rand(2, 4);
+          break;
+
+        case "Overhyped":
+          revenueGrowth = rand(12, 30);
+          operatingMargin = rand(-12, 8);
+          debtToEquity = rand(0.0, 1.5, 2);
+          peRatio = rand(45, 90);
+          fcfMargin = rand(-10, 6);
+          roe = rand(-8, 10);
+          volatility = rand(8, 10);
+          break;
+
+        case "Undervalued":
+          revenueGrowth = rand(5, 16);
+          operatingMargin = rand(10, 24);
+          debtToEquity = rand(0.1, 1.0, 2);
+          peRatio = rand(8, 15);
+          fcfMargin = rand(8, 20);
+          roe = rand(10, 24);
+          volatility = rand(3, 6);
+          break;
+
+        case "Debt Heavy":
+          revenueGrowth = rand(4, 16);
+          operatingMargin = rand(6, 18);
+          debtToEquity = rand(2.0, 4.5, 2);
+          peRatio = rand(8, 18);
+          fcfMargin = rand(2, 12);
+          roe = rand(8, 18);
+          volatility = rand(6, 9);
+          break;
+
+        case "Speculative":
+          revenueGrowth = rand(20, 60);
+          operatingMargin = rand(-25, 5);
+          debtToEquity = rand(0.0, 1.8, 2);
+          peRatio = rand(0, 120);
+          fcfMargin = rand(-20, 4);
+          roe = rand(-20, 8);
+          volatility = rand(8, 10);
+          break;
+
+        default: // Balanced
+          revenueGrowth = rand(6, 18);
+          operatingMargin = rand(10, 22);
+          debtToEquity = rand(0.2, 1.2, 2);
+          peRatio = rand(14, 24);
+          fcfMargin = rand(6, 18);
+          roe = rand(10, 22);
+          volatility = rand(3, 6);
+      }
+
+      const marketCap = rand(2, 180, 1); // billions
+      const analystRating = rand(1.8, 4.8, 1); // 1 bad, 5 great
+
+      const valuationScore =
+        peRatio === 0 ? -12 :
+        peRatio < 10 ? 10 :
+        peRatio <= 18 ? 14 :
+        peRatio <= 28 ? 8 :
+        peRatio <= 40 ? 1 :
+        -10;
+
+      const investmentScore =
+        revenueGrowth * 1.5 +
+        operatingMargin * 1.8 +
+        fcfMargin * 2.0 +
+        roe * 1.3 +
+        valuationScore +
+        analystRating * 2 -
+        debtToEquity * 8 -
+        volatility * 3;
+
+      return {
+        id,
+        name,
+        industry,
+        profile,
+        marketCap,
+        revenueGrowth,
+        operatingMargin,
+        debtToEquity,
+        peRatio,
+        fcfMargin,
+        roe,
+        volatility,
+        analystRating,
+        investmentScore: Number(investmentScore.toFixed(2))
+      };
+    }
+
+    // Build 100 fake but realistic companies
+    const companyPool = [];
+    for (let i = 1; i <= 100; i++) {
+      companyPool.push(createCompany(i));
+    }
+
+    // -----------------------------
+    // GAME STATE
+    // -----------------------------
+    let currentCompanies = [];
+    let bestCompany = null;
+    let score = 0;
+    let round = 0;
+    let answered = 0;
+    let locked = false;
+
+    function getThreeCompanies() {
+      return shuffle(companyPool).slice(0, 3);
+    }
+
+    function renderCompanies() {
+      const cards = document.getElementById("cards");
+      cards.innerHTML = "";
+
+      currentCompanies.forEach((company, index) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.setAttribute("data-index", index);
+
+        const peDisplay = company.peRatio === 0 ? "N/M" : company.peRatio;
+
+        card.innerHTML = `
+          <h2>${company.name}</h2>
+          <div class="industry">${company.industry}</div>
+          <div class="metrics">
+            <div><strong>Market Cap:</strong> $${company.marketCap}B</div>
+            <div><strong>Revenue Growth:</strong> ${company.revenueGrowth}%</div>
+            <div><strong>Operating Margin:</strong> ${company.operatingMargin}%</div>
+            <div><strong>Free Cash Flow Margin:</strong> ${company.fcfMargin}%</div>
+            <div><strong>ROE:</strong> ${company.roe}%</div>
+            <div><strong>Debt-to-Equity:</strong> ${company.debtToEquity}</div>
+            <div><strong>P/E Ratio:</strong> ${peDisplay}</div>
+            <div><strong>Volatility:</strong> ${company.volatility}/10</div>
+            <div><strong>Analyst Rating:</strong> ${company.analystRating}/5</div>
+          </div>
+          <button onclick="chooseCompany(${index})">Choose Investment</button>
+        `;
+
+        cards.appendChild(card);
+      });
+    }
+
+    function startRound() {
+      currentCompanies = getThreeCompanies();
+      bestCompany = [...currentCompanies].sort((a, b) => b.investmentScore - a.investmentScore)[0];
+      round++;
+      locked = false;
+
+      renderCompanies();
+
+      document.getElementById("feedback").innerHTML =
+        "Review the data and choose the strongest investment.";
+      document.getElementById("nextBtn").style.display = "none";
+      document.getElementById("round").textContent = answered;
+    }
+
+    function chooseCompany(index) {
+      if (locked) return;
+      locked = true;
+      answered++;
+
+      const selected = currentCompanies[index];
+      const feedback = document.getElementById("feedback");
+      const cards = document.querySelectorAll(".card");
+
+      cards.forEach((card, cardIndex) => {
+        card.classList.add("dimmed");
+
+        if (cardIndex === index) {
+          card.classList.add("selected");
+        }
+
+        if (currentCompanies[cardIndex].id === bestCompany.id) {
+          card.classList.add("best");
+        }
+
+        const button = card.querySelector("button");
+        if (button) button.disabled = true;
+      });
+
+      if (selected.id === bestCompany.id) {
+        score++;
+        feedback.innerHTML = `
+          <div class="correct">Correct. ${selected.name} was the best investment.</div>
+          <div class="small">
+            This company likely won because it had the best mix of growth, profitability,
+            cash flow, reasonable valuation, and manageable risk.
+          </div>
+          <div class="small">
+            Hidden profile: <strong>${selected.profile}</strong>
+          </div>
+        `;
+      } else {
+        feedback.innerHTML = `
+          <div class="wrong">Not quite. You chose ${selected.name}.</div>
+          <div class="small">
+            The best investment was <strong>${bestCompany.name}</strong>.
+          </div>
+          <div class="small">
+            Hidden profile: <strong>${bestCompany.profile}</strong>
+          </div>
+        `;
+      }
+
+      document.getElementById("score").textContent = score;
+      document.getElementById("round").textContent = answered;
+      document.getElementById("nextBtn").style.display = "inline-block";
+    }
+
+    startRound();
+  </script>
+</body>
+</html>
